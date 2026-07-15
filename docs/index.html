@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TraceBot - Local DevOps & Automated Testing Agent</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #0d1117;
+            color: #c9d1d9;
+            line-height: 1.6;
+        }
+        .container { max-width: 900px; margin: 0 auto; padding: 2rem; }
+        header {
+            text-align: center;
+            padding: 4rem 0 2rem;
+            border-bottom: 1px solid #21262d;
+        }
+        h1 {
+            font-size: 3rem;
+            color: #58a6ff;
+            margin-bottom: 0.5rem;
+        }
+        .subtitle {
+            font-size: 1.2rem;
+            color: #8b949e;
+        }
+        .badge {
+            display: inline-block;
+            background: #238636;
+            color: #fff;
+            padding: 0.3rem 0.8rem;
+            border-radius: 20px;
+            font-size: 0.85rem;
+            margin-top: 1rem;
+        }
+        .badge.track { background: #1f6feb; }
+        .badge.team { background: #8957e5; }
+        section { padding: 2rem 0; border-bottom: 1px solid #21262d; }
+        h2 { color: #58a6ff; margin-bottom: 1rem; font-size: 1.5rem; }
+        h3 { color: #c9d1d9; margin: 1.5rem 0 0.5rem; }
+        p { margin-bottom: 1rem; color: #8b949e; }
+        ul { padding-left: 1.5rem; margin-bottom: 1rem; }
+        li { margin-bottom: 0.5rem; color: #8b949e; }
+        .architecture {
+            background: #161b22;
+            border: 1px solid #21262d;
+            border-radius: 8px;
+            padding: 1.5rem;
+            font-family: 'Courier New', monospace;
+            font-size: 0.9rem;
+            overflow-x: auto;
+            white-space: pre;
+            color: #c9d1d9;
+        }
+        .tech-stack {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.5rem;
+            margin-top: 1rem;
+        }
+        .tech {
+            background: #21262d;
+            border: 1px solid #30363d;
+            padding: 0.4rem 0.8rem;
+            border-radius: 6px;
+            font-size: 0.85rem;
+            color: #c9d1d9;
+        }
+        .endpoint {
+            background: #161b22;
+            border: 1px solid #21262d;
+            border-radius: 6px;
+            padding: 1rem;
+            margin-bottom: 0.5rem;
+        }
+        .method {
+            display: inline-block;
+            padding: 0.2rem 0.5rem;
+            border-radius: 4px;
+            font-size: 0.8rem;
+            font-weight: bold;
+            margin-right: 0.5rem;
+        }
+        .method.post { background: #238636; color: #fff; }
+        .method.get { background: #1f6feb; color: #fff; }
+        code {
+            background: #21262d;
+            padding: 0.2rem 0.4rem;
+            border-radius: 4px;
+            font-size: 0.9rem;
+        }
+        .footer {
+            text-align: center;
+            padding: 2rem 0;
+            color: #484f58;
+        }
+        a { color: #58a6ff; text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        .flow-step {
+            display: flex;
+            align-items: flex-start;
+            margin-bottom: 1rem;
+            gap: 1rem;
+        }
+        .flow-number {
+            background: #1f6feb;
+            color: #fff;
+            width: 30px;
+            height: 30px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            flex-shrink: 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>TraceBot</h1>
+            <p class="subtitle">Local DevOps & Automated Testing Agent</p>
+            <span class="badge track">Track 2: Localized AI Agents</span>
+            <span class="badge team">Team: NeoDev</span>
+            <span class="badge">AMD Radeon + ROCm</span>
+        </header>
+
+        <section>
+            <h2>What is TraceBot?</h2>
+            <p>TraceBot is an autonomous multi-agent system that monitors your local Git repositories, identifies test coverage gaps, generates unit tests using a locally-running LLM, and self-corrects failures through an intelligent debugging loop.</p>
+            <p>It runs entirely on local AMD Radeon hardware using the ROCm software stack with Ollama for inference — no cloud APIs, no data leaves your machine.</p>
+        </section>
+
+        <section>
+            <h2>How It Works</h2>
+            <div class="flow-step">
+                <div class="flow-number">1</div>
+                <div><strong>Monitor</strong> — Detects changed Python files in your Git repository</div>
+            </div>
+            <div class="flow-step">
+                <div class="flow-number">2</div>
+                <div><strong>Analyze</strong> — Parses code via AST to find functions without test coverage</div>
+            </div>
+            <div class="flow-step">
+                <div class="flow-number">3</div>
+                <div><strong>Generate</strong> — Prompts Llama 3 (local) to write comprehensive unittest files</div>
+            </div>
+            <div class="flow-step">
+                <div class="flow-number">4</div>
+                <div><strong>Debug</strong> — Runs tests; if they fail, feeds tracebacks to the LLM for self-correction (up to 3 iterations)</div>
+            </div>
+            <div class="flow-step">
+                <div class="flow-number">5</div>
+                <div><strong>Report</strong> — Summarizes results via the FastAPI dashboard</div>
+            </div>
+        </section>
+
+        <section>
+            <h2>Architecture</h2>
+            <div class="architecture">
+tracebot/
+├── main.py              # FastAPI server + endpoints
+├── config.py            # Environment-based configuration
+├── agents/
+│   └── coordinator.py   # Pipeline: Analyze → Generate → Debug → Report
+├── tools/
+│   ├── git_monitor.py   # Git change detection
+│   ├── code_parser.py   # AST-based function extraction
+│   ├── test_runner.py   # unittest subprocess execution
+│   └── file_ops.py      # Safe file I/O
+└── requirements.txt
+            </div>
+        </section>
+
+        <section>
+            <h2>API Endpoints</h2>
+            <div class="endpoint">
+                <span class="method post">POST</span><code>/run</code>
+                <p>Trigger a new analysis + test generation run</p>
+            </div>
+            <div class="endpoint">
+                <span class="method get">GET</span><code>/run/{run_id}</code>
+                <p>Check the status of a specific run</p>
+            </div>
+            <div class="endpoint">
+                <span class="method get">GET</span><code>/runs</code>
+                <p>List all runs and their results</p>
+            </div>
+            <div class="endpoint">
+                <span class="method get">GET</span><code>/health</code>
+                <p>Health check — model status and configuration</p>
+            </div>
+        </section>
+
+        <section>
+            <h2>Quick Start</h2>
+            <div class="architecture">
+# 1. Install dependencies
+pip install -r tracebot/requirements.txt
+
+# 2. Install and start Ollama with Llama 3
+curl -fsSL https://ollama.com/install.sh | sh
+ollama pull llama3
+
+# 3. Run TraceBot
+cd tracebot && python main.py
+
+# 4. Trigger a run
+curl -X POST http://localhost:8000/run \
+  -H "Content-Type: application/json" \
+  -d '{"repo_path": "/path/to/your/repo"}'
+            </div>
+        </section>
+
+        <section>
+            <h2>Tech Stack</h2>
+            <div class="tech-stack">
+                <span class="tech">Python 3.10</span>
+                <span class="tech">FastAPI</span>
+                <span class="tech">Ollama</span>
+                <span class="tech">Llama 3</span>
+                <span class="tech">LangChain</span>
+                <span class="tech">AMD Radeon GPU</span>
+                <span class="tech">ROCm</span>
+                <span class="tech">unittest</span>
+                <span class="tech">AST parsing</span>
+            </div>
+        </section>
+
+        <section>
+            <h2>Source Code</h2>
+            <p><a href="https://github.com/NeoPhukubye/Radeon-hackathon-2026-07">github.com/NeoPhukubye/Radeon-hackathon-2026-07</a></p>
+        </section>
+
+        <div class="footer">
+            <p>Built by Team NeoDev for AMD Radeon Hackathon 2026</p>
+        </div>
+    </div>
+</body>
+</html>
