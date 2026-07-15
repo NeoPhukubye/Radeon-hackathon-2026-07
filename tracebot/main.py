@@ -119,6 +119,18 @@ async def list_runs():
     return list(runs.values())
 
 
+@app.get("/")
+async def root():
+    """Root endpoint."""
+    return {
+        "app": "TraceBot",
+        "team": "NeoDev",
+        "version": "0.1.0",
+        "docs": "/docs",
+        "endpoints": ["/run (POST)", "/run/{run_id} (GET)", "/runs (GET)", "/health (GET)"],
+    }
+
+
 @app.get("/health")
 async def health():
     """Health check endpoint."""
