@@ -1,0 +1,81 @@
+name: TraceBot CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r tracebot/requirements.txt
+          pip install pytest httpx
+
+      - name: Install Ollama
+        run: |
+          curl -fsSL https://ollama.com/install.sh | sh
+
+      - name: Start Ollama and pull model
+        run: |
+          ollama serve &
+          sleep 5
+          ollama pull llama3
+
+      - name: Verify Ollama is running
+        run: |
+          curl -s http://localhost:11434/api/tags | python -m json.tool
+
+      - name: Run TraceBot server smoke test
+        run: |
+          cd tracebot
+          python -c "from main import app; print('App loads OK')"
+
+      - name: Start server and test endpoints
+        run: |
+          cd tracebot
+          uvicorn main:app --host 0.0.0.0 --port 8000 &
+          sleep 3
+          curl -sf http://localhost:8000/health
+          curl -sf http://localhost:8000/
+          echo ""
+          echo "All endpoints responding"
+
+      - name: Run integration test with Ollama
+        run: |
+          cd tracebot
+          mkdir -p /tmp/test_repo
+          cat > /tmp/test_repo/calculator.py << 'PYEOF'
+          def add(a, b):
+              return a + b
+
+          def subtract(a, b):
+              return a - b
+
+          def multiply(a, b):
+              return a * b
+
+          def divide(a, b):
+              if b == 0:
+                  raise ValueError("Cannot divide by zero")
+              return a / b
+          PYEOF
+          cd /tmp/test_repo && git init && git add . && git commit -m "init"
+          cd /home/runner/work/Radeon-hackathon-2026-07/Radeon-hackathon-2026-07/tracebot
+          curl -sf -X POST http://localhost:8000/run \
+            -H "Content-Type: application/json" \
+            -d '{"repo_path": "/tmp/test_repo"}' | python -m json.tool
+          sleep 30
+          curl -sf http://localhost:8000/runs | python -m json.tool
