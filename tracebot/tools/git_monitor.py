@@ -1,11 +1,11 @@
 import subprocess
 from pathlib import Path
-from config import settings
+from config import REPO_PATH
 
 
 def get_changed_files(repo_path: Path | None = None, since_commit: str = "HEAD~1") -> list[str]:
     """Get Python files changed since a given commit."""
-    repo = repo_path or settings.repo_path
+    repo = repo_path or REPO_PATH
     try:
         result = subprocess.run(
             ["git", "diff", "--name-only", since_commit, "--", "*.py"],
@@ -21,7 +21,7 @@ def get_changed_files(repo_path: Path | None = None, since_commit: str = "HEAD~1
 
 def get_untracked_python_files(repo_path: Path | None = None) -> list[str]:
     """Get untracked Python files in the repo."""
-    repo = repo_path or settings.repo_path
+    repo = repo_path or REPO_PATH
     try:
         result = subprocess.run(
             ["git", "ls-files", "--others", "--exclude-standard", "*.py"],
@@ -37,7 +37,7 @@ def get_untracked_python_files(repo_path: Path | None = None) -> list[str]:
 
 def list_python_files(repo_path: Path | None = None) -> list[str]:
     """List all Python files in the repo (non-test files)."""
-    repo = repo_path or settings.repo_path
+    repo = repo_path or REPO_PATH
     return [
         str(p.relative_to(repo))
         for p in repo.rglob("*.py")
