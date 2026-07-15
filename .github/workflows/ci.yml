@@ -72,7 +72,7 @@ jobs:
                   raise ValueError("Cannot divide by zero")
               return a / b
           PYEOF
-          cd /tmp/test_repo && git init && git add . && git commit -m "init"
+          cd /tmp/test_repo && git init && git config user.email "ci@test.com" && git config user.name "CI" && git add . && git commit -m "init"
           cd /home/runner/work/Radeon-hackathon-2026-07/Radeon-hackathon-2026-07/tracebot
           curl -sf -X POST http://localhost:8000/run \
             -H "Content-Type: application/json" \
