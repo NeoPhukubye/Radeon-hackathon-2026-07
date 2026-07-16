@@ -13,19 +13,14 @@ from pathlib import Path
 from fastapi import FastAPI, BackgroundTasks, HTTPException
 from pydantic import BaseModel
 
+from config import REPO_PATH, MODEL_NAME, MAX_DEBUG_ITERATIONS
 from agents.coordinator import run_pipeline
 from tools.git_monitor import get_changed_files, list_python_files
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(name)s: %(message)s")
 logger = logging.getLogger("tracebot")
 
-# --- Configuration ---
-REPO_PATH = Path("./watched_repo")
-MODEL_NAME = "llama3"
-MAX_DEBUG_ITERATIONS = 3
 
-
-# --- Pydantic Models ---
 class RunRequest(BaseModel):
     repo_path: str | None = None
     target_files: list[str] | None = None
@@ -38,7 +33,6 @@ class RunStatus(BaseModel):
     summary: str = ""
 
 
-# --- In-memory run store ---
 runs: dict[str, RunStatus] = {}
 
 
@@ -121,7 +115,6 @@ async def list_runs():
 
 @app.get("/")
 async def root():
-    """Root endpoint."""
     return {
         "app": "TraceBot",
         "team": "NeoDev",
@@ -133,7 +126,6 @@ async def root():
 
 @app.get("/health")
 async def health():
-    """Health check endpoint."""
     return {"status": "ok", "model": MODEL_NAME, "repo": str(REPO_PATH)}
 
 

@@ -1,7 +1,7 @@
 """
 TraceBot Agent Coordinator
 Runs the pipeline: Analyze → Generate Tests → Debug Loop → Report
-Uses the ollama Python package for local LLM inference.
+Uses the ollama Python package for local LLM inference via Llama 3.
 """
 import logging
 from pathlib import Path
@@ -14,6 +14,17 @@ from tools.file_ops import read_file, write_file, ensure_directory
 
 logger = logging.getLogger("tracebot.coordinator")
 
+SYSTEM_PROMPT_GENERATE = (
+    "You are an expert Python test engineer. You write thorough, correct "
+    "unittest test files. Output ONLY valid Python code — no markdown fences, "
+    "no explanations, no comments outside the code."
+)
+
+SYSTEM_PROMPT_FIX = (
+    "You are a Python debugging expert. You fix failing test files so they pass. "
+    "Output ONLY the corrected Python file — no markdown fences, no explanations."
+)
+
 
 def run_pipeline(
     repo_path: Path,
@@ -23,25 +34,21 @@ def run_pipeline(
 ) -> str:
     """Execute the full TraceBot pipeline and return a summary report."""
 
-    # ── Phase 1: Analyze ──
     logger.info("Phase 1: Analyzing code for test gaps...")
     analysis = _analyze(repo_path, changed_files)
 
     if not analysis:
         return "No untested functions found. All code appears covered."
 
-    # ── Phase 2: Generate Tests ──
     logger.info("Phase 2: Generating unit tests...")
     generated = _generate_tests(repo_path, analysis, model)
 
     if not generated:
         return "Analysis found gaps but test generation produced no output."
 
-    # ── Phase 3: Debug Loop ──
     logger.info("Phase 3: Running tests and self-correcting...")
     results = _debug_loop(repo_path, generated, model, max_debug_iterations)
 
-    # ── Phase 4: Report ──
     return _build_report(analysis, generated, results)
 
 
@@ -82,19 +89,18 @@ def _generate_tests(repo_path: Path, analysis: list[dict], model: str) -> list[P
         prompt = (
             f"Generate a complete Python unittest test file for the following source code.\n"
             f"Focus on testing these functions: {', '.join(item['untested'])}\n"
-            f"Use Python's unittest framework. Output ONLY valid Python code, no markdown.\n\n"
-            f"Source file ({item['file_path']}):\n"
-            f"```\n{item['source']}\n```"
+            f"Use Python's unittest framework with unittest.TestCase.\n"
+            f"Include proper imports (assume the source is importable from the repo root).\n"
+            f"The source file is at: {item['file_path']}\n\n"
+            f"Source code:\n{item['source']}"
         )
 
         response = ollama.chat(model=model, messages=[
-            {"role": "system", "content": "You are an expert Python test engineer. Output only valid Python code."},
+            {"role": "system", "content": SYSTEM_PROMPT_GENERATE},
             {"role": "user", "content": prompt},
         ])
 
-        test_code = response["message"]["content"]
-        # Strip markdown fences if the model included them
-        test_code = test_code.replace("```python", "").replace("```", "").strip()
+        test_code = _strip_markdown_fences(response["message"]["content"])
 
         test_filename = f"test_{Path(item['file_path']).stem}.py"
         test_path = test_dir / test_filename
@@ -132,19 +138,18 @@ def _debug_loop(
             error_text = "\n".join(outcome["errors"][:3]) or outcome["output"][-2000:]
 
             fix_prompt = (
-                f"This unittest file failed. Fix it so all tests pass.\n"
-                f"Error output:\n```\n{error_text}\n```\n\n"
-                f"Current test file:\n```\n{test_content}\n```\n\n"
-                f"Output ONLY the corrected Python file. No markdown fences."
+                f"This unittest file failed with the following errors. Fix it.\n\n"
+                f"Error output:\n{error_text}\n\n"
+                f"Current test file:\n{test_content}\n\n"
+                f"Output the complete corrected Python file."
             )
 
             response = ollama.chat(model=model, messages=[
-                {"role": "system", "content": "You are a Python debugging expert. Fix the test file so it passes."},
+                {"role": "system", "content": SYSTEM_PROMPT_FIX},
                 {"role": "user", "content": fix_prompt},
             ])
 
-            fixed_code = response["message"]["content"]
-            fixed_code = fixed_code.replace("```python", "").replace("```", "").strip()
+            fixed_code = _strip_markdown_fences(response["message"]["content"])
             write_file(test_path, fixed_code)
 
         if not file_result["passed"]:
@@ -178,3 +183,15 @@ def _build_report(analysis: list[dict], generated: list[Path], results: list[dic
         lines.append(f"  [{status}] {r['file']} (iterations: {r['iterations']})")
 
     return "\n".join(lines)
+
+
+def _strip_markdown_fences(text: str) -> str:
+    """Remove markdown code fences from LLM output."""
+    text = text.strip()
+    if text.startswith("```python"):
+        text = text[len("```python"):]
+    elif text.startswith("```"):
+        text = text[3:]
+    if text.endswith("```"):
+        text = text[:-3]
+    return text.strip()
