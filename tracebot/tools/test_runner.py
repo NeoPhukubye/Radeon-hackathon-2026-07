@@ -6,7 +6,7 @@ from pathlib import Path
 def run_tests(test_file: Path, repo_path: Path) -> dict:
     """Run a test file using unittest and return results."""
     result = subprocess.run(
-        ["python", "-m", "unittest", str(test_file), "-v"],
+        ["python3", "-m", "unittest", str(test_file), "-v"],
         cwd=repo_path,
         capture_output=True,
         text=True,
