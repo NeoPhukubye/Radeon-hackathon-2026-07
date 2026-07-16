@@ -2,6 +2,7 @@
 TraceBot - Local DevOps & Automated Testing Agent
 Main FastAPI application entry point.
 
+Runs on AMD Radeon GPU via ROCm for accelerated local AI inference.
 Team: NeoDev | Track 2: Localized AI Agents Deployment
 """
 import uuid
@@ -13,7 +14,7 @@ from pathlib import Path
 from fastapi import FastAPI, BackgroundTasks, HTTPException
 from pydantic import BaseModel
 
-from config import REPO_PATH, MODEL_NAME, MAX_DEBUG_ITERATIONS
+from config import REPO_PATH, MODEL_NAME, MAX_DEBUG_ITERATIONS, get_gpu_status
 from agents.coordinator import run_pipeline
 from tools.git_monitor import get_changed_files, list_python_files
 
@@ -38,15 +39,19 @@ runs: dict[str, RunStatus] = {}
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    gpu = get_gpu_status()
     logger.info(f"TraceBot starting | model={MODEL_NAME} | repo={REPO_PATH}")
+    logger.info(f"GPU: {gpu['backend']} | accelerated={gpu['accelerated']}")
+    if gpu["accelerated"]:
+        logger.info(f"AMD Radeon GPU detected — ROCm acceleration active")
     yield
     logger.info("TraceBot shutting down")
 
 
 app = FastAPI(
     title="TraceBot",
-    description="Local DevOps & Automated Testing Agent — NeoDev",
-    version="0.1.0",
+    description="Local DevOps & Automated Testing Agent — AMD Radeon GPU Accelerated — NeoDev",
+    version="0.2.0",
     lifespan=lifespan,
 )
 
@@ -87,7 +92,7 @@ async def execute_run(run_id: str, repo_path: Path, target_files: list[str] | No
 
 @app.post("/run", response_model=RunStatus)
 async def trigger_run(request: RunRequest, background_tasks: BackgroundTasks):
-    """Trigger a new TraceBot analysis + test generation run."""
+    """Trigger a new TraceBot analysis + test generation + solution generation run."""
     run_id = str(uuid.uuid4())[:8]
     repo_path = Path(request.repo_path) if request.repo_path else REPO_PATH
 
@@ -115,10 +120,13 @@ async def list_runs():
 
 @app.get("/")
 async def root():
+    gpu = get_gpu_status()
     return {
         "app": "TraceBot",
         "team": "NeoDev",
-        "version": "0.1.0",
+        "track": "Track 2: Localized AI Agents Deployment",
+        "version": "0.2.0",
+        "gpu": gpu,
         "docs": "/docs",
         "endpoints": ["/run (POST)", "/run/{run_id} (GET)", "/runs (GET)", "/health (GET)"],
     }
@@ -126,7 +134,8 @@ async def root():
 
 @app.get("/health")
 async def health():
-    return {"status": "ok", "model": MODEL_NAME, "repo": str(REPO_PATH)}
+    gpu = get_gpu_status()
+    return {"status": "ok", "model": MODEL_NAME, "repo": str(REPO_PATH), "gpu": gpu}
 
 
 if __name__ == "__main__":
