@@ -12,6 +12,7 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import FastAPI, BackgroundTasks, HTTPException
+from fastapi.responses import FileResponse
 from pydantic import BaseModel
 
 from config import REPO_PATH, MODEL_NAME, MAX_DEBUG_ITERATIONS, get_gpu_status
@@ -118,8 +119,8 @@ async def list_runs():
     return list(runs.values())
 
 
-@app.get("/")
-async def root():
+@app.get("/status")
+async def get_status():
     gpu = get_gpu_status()
     return {
         "app": "TraceBot",
@@ -136,6 +137,11 @@ async def root():
 async def health():
     gpu = get_gpu_status()
     return {"status": "ok", "model": MODEL_NAME, "repo": str(REPO_PATH), "gpu": gpu}
+
+
+@app.get("/")
+async def root():
+    return FileResponse("../docs/index.html")
 
 
 if __name__ == "__main__":

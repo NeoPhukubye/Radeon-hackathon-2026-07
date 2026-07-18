@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>TraceBot - Local DevOps & Automated Testing Agent</title>
+    <title>TraceBot - Control Panel</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
@@ -15,230 +15,249 @@
         .container { max-width: 900px; margin: 0 auto; padding: 2rem; }
         header {
             text-align: center;
-            padding: 4rem 0 2rem;
+            padding: 2rem 0;
             border-bottom: 1px solid #21262d;
         }
-        h1 {
-            font-size: 3rem;
-            color: #58a6ff;
-            margin-bottom: 0.5rem;
+        h1 { font-size: 2.5rem; color: #58a6ff; margin-bottom: 0.5rem; }
+        .subtitle { font-size: 1.1rem; color: #8b949e; }
+        section { padding: 2rem 0; border-bottom: 1px solid #21262d; }
+        h2 { color: #58a6ff; margin-bottom: 1.5rem; font-size: 1.5rem; }
+
+        .form-group { margin-bottom: 1.5rem; }
+        label { display: block; margin-bottom: 0.5rem; color: #8b949e; }
+        input, textarea {
+            width: 100%;
+            background: #161b22;
+            border: 1px solid #30363d;
+            border-radius: 6px;
+            padding: 0.75rem;
+            color: #c9d1d9;
+            font-size: 1rem;
         }
-        .subtitle {
-            font-size: 1.2rem;
-            color: #8b949e;
+        textarea {
+            min-height: 80px;
+            font-family: 'Courier New', monospace;
         }
-        .badge {
-            display: inline-block;
+        button {
             background: #238636;
             color: #fff;
+            border: none;
+            padding: 0.75rem 1.5rem;
+            border-radius: 6px;
+            font-size: 1rem;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        button:hover { background: #2ea043; }
+        
+        #runs-list {
+            list-style: none;
+            margin-top: 1rem;
+        }
+        .run-item {
+            background: #161b22;
+            border: 1px solid #30363d;
+            border-radius: 6px;
+            padding: 1rem 1.5rem;
+            margin-bottom: 1rem;
+            cursor: pointer;
+            transition: border-color 0.2s;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .run-item:hover { border-color: #58a6ff; }
+        .run-id { font-family: 'Courier New', monospace; color: #58a6ff; }
+        .run-status {
             padding: 0.3rem 0.8rem;
             border-radius: 20px;
             font-size: 0.85rem;
-            margin-top: 1rem;
+            font-weight: bold;
         }
-        .badge.track { background: #1f6feb; }
-        .badge.team { background: #8957e5; }
-        section { padding: 2rem 0; border-bottom: 1px solid #21262d; }
-        h2 { color: #58a6ff; margin-bottom: 1rem; font-size: 1.5rem; }
-        h3 { color: #c9d1d9; margin: 1.5rem 0 0.5rem; }
-        p { margin-bottom: 1rem; color: #8b949e; }
-        ul { padding-left: 1.5rem; margin-bottom: 1rem; }
-        li { margin-bottom: 0.5rem; color: #8b949e; }
-        .architecture {
+        .run-status.queued { background: #8957e5; color: #fff; }
+        .run-status.running { background: #1f6feb; color: #fff; }
+        .run-status.completed { background: #238636; color: #fff; }
+        .run-status.failed { background: #da3633; color: #fff; }
+
+        #run-details {
+            margin-top: 1.5rem;
             background: #161b22;
-            border: 1px solid #21262d;
+            border: 1px solid #30363d;
             border-radius: 8px;
             padding: 1.5rem;
-            font-family: 'Courier New', monospace;
-            font-size: 0.9rem;
-            overflow-x: auto;
-            white-space: pre;
-            color: #c9d1d9;
         }
-        .tech-stack {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 0.5rem;
-            margin-top: 1rem;
+        #run-details h3 {
+             color: #58a6ff; 
+             margin-bottom: 1rem;
+             border-bottom: 1px solid #30363d;
+             padding-bottom: 0.5rem;
         }
-        .tech {
-            background: #21262d;
-            border: 1px solid #30363d;
-            padding: 0.4rem 0.8rem;
-            border-radius: 6px;
-            font-size: 0.85rem;
-            color: #c9d1d9;
-        }
-        .endpoint {
-            background: #161b22;
-            border: 1px solid #21262d;
-            border-radius: 6px;
+        #run-details pre {
+            white-space: pre-wrap;
+            word-wrap: break-word;
+            background: #0d1117;
             padding: 1rem;
-            margin-bottom: 0.5rem;
-        }
-        .method {
-            display: inline-block;
-            padding: 0.2rem 0.5rem;
-            border-radius: 4px;
-            font-size: 0.8rem;
-            font-weight: bold;
-            margin-right: 0.5rem;
-        }
-        .method.post { background: #238636; color: #fff; }
-        .method.get { background: #1f6feb; color: #fff; }
-        code {
-            background: #21262d;
-            padding: 0.2rem 0.4rem;
-            border-radius: 4px;
-            font-size: 0.9rem;
+            border-radius: 6px;
+            font-family: 'Courier New', monospace;
         }
         .footer {
             text-align: center;
             padding: 2rem 0;
             color: #484f58;
-        }
-        a { color: #58a6ff; text-decoration: none; }
-        a:hover { text-decoration: underline; }
-        .flow-step {
-            display: flex;
-            align-items: flex-start;
-            margin-bottom: 1rem;
-            gap: 1rem;
-        }
-        .flow-number {
-            background: #1f6feb;
-            color: #fff;
-            width: 30px;
-            height: 30px;
-            border-radius: 50%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-weight: bold;
-            flex-shrink: 0;
+            font-size: 0.9rem;
         }
     </style>
 </head>
 <body>
     <div class="container">
         <header>
-            <h1>TraceBot</h1>
-            <p class="subtitle">Local DevOps & Automated Testing Agent</p>
-            <span class="badge track">Track 2: Localized AI Agents</span>
-            <span class="badge team">Team: NeoDev</span>
-            <span class="badge">AMD Radeon + ROCm</span>
+            <h1>TraceBot Control Panel</h1>
+            <p class="subtitle">Monitor and trigger automated analysis runs.</p>
         </header>
 
-        <section>
-            <h2>What is TraceBot?</h2>
-            <p>TraceBot is an autonomous multi-agent system that monitors your local Git repositories, identifies test coverage gaps, generates unit tests using a locally-running LLM, and self-corrects failures through an intelligent debugging loop.</p>
-            <p>It runs entirely on local AMD Radeon hardware using the ROCm software stack with Ollama for inference — no cloud APIs, no data leaves your machine.</p>
+        <section id="control-section">
+            <h2>New Run</h2>
+            <div class="form-group">
+                <label for="repo-path">Repository Path (optional)</label>
+                <input type="text" id="repo-path" placeholder="Defaults to the path set in TRACEBOT_REPO_PATH">
+            </div>
+            <div class="form-group">
+                <label for="target-files">Target Files (optional, one per line)</label>
+                <textarea id="target-files" placeholder="e.g., my_module/my_file.py&#10;another_module/utils.py"></textarea>
+            </div>
+            <button id="run-button">Trigger Run</button>
         </section>
 
-        <section>
-            <h2>How It Works</h2>
-            <div class="flow-step">
-                <div class="flow-number">1</div>
-                <div><strong>Monitor</strong> — Detects changed Python files in your Git repository</div>
-            </div>
-            <div class="flow-step">
-                <div class="flow-number">2</div>
-                <div><strong>Analyze</strong> — Parses code via AST to find functions without test coverage</div>
-            </div>
-            <div class="flow-step">
-                <div class="flow-number">3</div>
-                <div><strong>Generate</strong> — Prompts Llama 3 (local) to write comprehensive unittest files</div>
-            </div>
-            <div class="flow-step">
-                <div class="flow-number">4</div>
-                <div><strong>Debug</strong> — Runs tests; if they fail, feeds tracebacks to the LLM for self-correction (up to 3 iterations)</div>
-            </div>
-            <div class="flow-step">
-                <div class="flow-number">5</div>
-                <div><strong>Report</strong> — Summarizes results via the FastAPI dashboard</div>
-            </div>
+        <section id="runs-section">
+            <h2>Runs</h2>
+            <ul id="runs-list"></ul>
         </section>
-
-        <section>
-            <h2>Architecture</h2>
-            <div class="architecture">
-tracebot/
-├── main.py              # FastAPI server + endpoints
-├── config.py            # Environment-based configuration
-├── agents/
-│   └── coordinator.py   # Pipeline: Analyze → Generate → Debug → Report
-├── tools/
-│   ├── git_monitor.py   # Git change detection
-│   ├── code_parser.py   # AST-based function extraction
-│   ├── test_runner.py   # unittest subprocess execution
-│   └── file_ops.py      # Safe file I/O
-└── requirements.txt
+        
+        <section id="details-section" style="display: none;">
+            <h2>Run Details</h2>
+            <div id="run-details">
+                <h3 id="details-run-id"></h3>
+                <p><strong>Status:</strong> <span id="details-status"></span></p>
+                <p><strong>Current Step:</strong> <span id="details-step"></span></p>
+                <h3>Summary</h3>
+                <pre id="details-summary"></pre>
             </div>
-        </section>
-
-        <section>
-            <h2>API Endpoints</h2>
-            <div class="endpoint">
-                <span class="method post">POST</span><code>/run</code>
-                <p>Trigger a new analysis + test generation run</p>
-            </div>
-            <div class="endpoint">
-                <span class="method get">GET</span><code>/run/{run_id}</code>
-                <p>Check the status of a specific run</p>
-            </div>
-            <div class="endpoint">
-                <span class="method get">GET</span><code>/runs</code>
-                <p>List all runs and their results</p>
-            </div>
-            <div class="endpoint">
-                <span class="method get">GET</span><code>/health</code>
-                <p>Health check — model status and configuration</p>
-            </div>
-        </section>
-
-        <section>
-            <h2>Quick Start</h2>
-            <div class="architecture">
-# 1. Install dependencies
-pip install -r tracebot/requirements.txt
-
-# 2. Install and start Ollama with Llama 3
-curl -fsSL https://ollama.com/install.sh | sh
-ollama pull llama3
-
-# 3. Run TraceBot
-cd tracebot && python main.py
-
-# 4. Trigger a run
-curl -X POST http://localhost:8000/run \
-  -H "Content-Type: application/json" \
-  -d '{"repo_path": "/path/to/your/repo"}'
-            </div>
-        </section>
-
-        <section>
-            <h2>Tech Stack</h2>
-            <div class="tech-stack">
-                <span class="tech">Python 3.10</span>
-                <span class="tech">FastAPI</span>
-                <span class="tech">Ollama</span>
-                <span class="tech">Llama 3</span>
-                <span class="tech">LangChain</span>
-                <span class="tech">AMD Radeon GPU</span>
-                <span class="tech">ROCm</span>
-                <span class="tech">unittest</span>
-                <span class="tech">AST parsing</span>
-            </div>
-        </section>
-
-        <section>
-            <h2>Source Code</h2>
-            <p><a href="https://github.com/NeoPhukubye/Radeon-hackathon-2026-07">github.com/NeoPhukubye/Radeon-hackathon-2026-07</a></p>
         </section>
 
         <div class="footer">
-            <p>Built by Team NeoDev for AMD Radeon Hackathon 2026</p>
+            <p>TraceBot | Developed by Team NeoDev</p>
         </div>
     </div>
+
+    <script>
+        const runButton = document.getElementById('run-button');
+        const repoPathInput = document.getElementById('repo-path');
+        const targetFilesInput = document.getElementById('target-files');
+        const runsList = document.getElementById('runs-list');
+        const detailsSection = document.getElementById('details-section');
+        const detailsRunId = document.getElementById('details-run-id');
+        const detailsStatus = document.getElementById('details-status');
+        const detailsStep = document.getElementById('details-step');
+        const detailsSummary = document.getElementById('details-summary');
+
+        const API_BASE_URL = window.location.origin;
+
+        async function fetchRuns() {
+            try {
+                const response = await fetch(`${API_BASE_URL}/runs`);
+                const runs = await response.json();
+                renderRuns(runs);
+            } catch (error) {
+                console.error('Error fetching runs:', error);
+            }
+        }
+
+        function renderRuns(runs) {
+            runsList.innerHTML = '';
+            runs.sort((a,b) => b.run_id.localeCompare(a.run_id)); // simple sort
+            for (const run of runs) {
+                const li = document.createElement('li');
+                li.className = 'run-item';
+                li.dataset.runId = run.run_id;
+                li.innerHTML = `
+                    <div>
+                        <span class="run-id">${run.run_id}</span>
+                        <br>
+                        <span>${run.current_step}</span>
+                    </div>
+                    <span class="run-status ${run.status}">${run.status}</span>
+                `;
+                li.addEventListener('click', () => showRunDetails(run.run_id));
+                runsList.appendChild(li);
+            }
+        }
+        
+        async function showRunDetails(runId) {
+            try {
+                const response = await fetch(`${API_BASE_URL}/run/${runId}`);
+                const run = await response.json();
+                
+                detailsRunId.textContent = `Run ID: ${run.run_id}`;
+                detailsStatus.textContent = run.status;
+                detailsStep.textContent = run.current_step;
+                detailsSummary.textContent = run.summary || 'No summary available yet.';
+                
+                detailsStatus.className = `run-status ${run.status}`;
+
+                detailsSection.style.display = 'block';
+                window.scrollTo({ top: detailsSection.offsetTop - 20, behavior: 'smooth' });
+
+            } catch (error) {
+                console.error(`Error fetching details for run ${runId}:`, error);
+            }
+        }
+
+        async function triggerRun() {
+            const repoPath = repoPathInput.value.trim();
+            const targetFiles = targetFilesInput.value.trim().split('
+').filter(f => f);
+
+            const body = {};
+            if (repoPath) {
+                body.repo_path = repoPath;
+            }
+            if (targetFiles.length > 0) {
+                body.target_files = targetFiles;
+            }
+            
+            runButton.disabled = true;
+            runButton.textContent = 'Triggering...';
+
+            try {
+                const response = await fetch(`${API_BASE_URL}/run`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(body),
+                });
+                if (response.ok) {
+                    await fetchRuns();
+                    repoPathInput.value = '';
+                    targetFilesInput.value = '';
+                } else {
+                    const error = await response.json();
+                    alert(`Error: ${error.detail}`);
+                }
+            } catch (error) {
+                console.error('Error triggering run:', error);
+                alert('An error occurred while triggering the run.');
+            } finally {
+                runButton.disabled = false;
+                runButton.textContent = 'Trigger Run';
+            }
+        }
+
+        runButton.addEventListener('click', triggerRun);
+
+        // Fetch runs on page load and then every 3 seconds
+        fetchRuns();
+        setInterval(fetchRuns, 3000);
+    </script>
 </body>
 </html>
