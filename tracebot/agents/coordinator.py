@@ -12,26 +12,14 @@ import ollama
 from ..tools.code_parser import parse_python_file, find_existing_tests
 from ..tools.test_runner import run_tests
 from ..tools.file_ops import read_file, write_file, ensure_directory
-from ..config import SOLUTIONS_OUTPUT_DIR
+from ..config import (
+    SOLUTIONS_OUTPUT_DIR,
+    SYSTEM_PROMPT_GENERATE,
+    SYSTEM_PROMPT_FIX,
+    SYSTEM_PROMPT_SOLUTION,
+)
 
 logger = logging.getLogger("tracebot.coordinator")
-
-SYSTEM_PROMPT_GENERATE = (
-    "You are an expert Python test engineer. You write thorough, correct "
-    "unittest test files. Output ONLY valid Python code — no markdown fences, "
-    "no explanations, no comments outside the code."
-)
-
-SYSTEM_PROMPT_FIX = (
-    "You are a Python debugging expert. You fix failing test files so they pass. "
-    "Output ONLY the corrected Python file — no markdown fences, no explanations."
-)
-
-SYSTEM_PROMPT_SOLUTION = (
-    "You are a senior Python engineer. You analyze failing code and produce "
-    "a corrected, production-ready version. You also suggest improvements for "
-    "reliability, performance, and readability. Output ONLY valid Python code."
-)
 
 
 def run_pipeline(
