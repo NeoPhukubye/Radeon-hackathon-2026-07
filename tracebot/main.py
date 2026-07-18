@@ -15,9 +15,9 @@ from fastapi import FastAPI, BackgroundTasks, HTTPException
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
 
-from config import REPO_PATH, MODEL_NAME, MAX_DEBUG_ITERATIONS, get_gpu_status
-from agents.coordinator import run_pipeline
-from tools.git_monitor import get_changed_files, list_python_files
+from .config import REPO_PATH, MODEL_NAME, MAX_DEBUG_ITERATIONS, get_gpu_status
+from .agents.coordinator import run_pipeline
+from .tools.git_monitor import get_changed_files, list_python_files
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(name)s: %(message)s")
 logger = logging.getLogger("tracebot")
