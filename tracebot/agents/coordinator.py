@@ -9,10 +9,10 @@ from pathlib import Path
 
 import ollama
 
-from tools.code_parser import parse_python_file, find_existing_tests
-from tools.test_runner import run_tests
-from tools.file_ops import read_file, write_file, ensure_directory
-from config import SOLUTIONS_OUTPUT_DIR
+from ..tools.code_parser import parse_python_file, find_existing_tests
+from ..tools.test_runner import run_tests
+from ..tools.file_ops import read_file, write_file, ensure_directory
+from ..config import SOLUTIONS_OUTPUT_DIR
 
 logger = logging.getLogger("tracebot.coordinator")
 
