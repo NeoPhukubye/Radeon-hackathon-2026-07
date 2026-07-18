@@ -42,3 +42,22 @@ def get_gpu_status() -> dict:
         return {"accelerated": False, "backend": "cpu", "reason": "ROCm not found but requested"}
 
     return {"accelerated": False, "backend": "cpu", "reason": "ROCm not installed"}
+
+# System Prompts
+SYSTEM_PROMPT_GENERATE = (
+    "You are an expert Python test engineer. You write thorough, correct "
+    "unittest test files. Output ONLY valid Python code — no markdown fences, "
+    "no explanations, no comments outside the code."
+)
+
+SYSTEM_PROMPT_FIX = (
+    "You are a Python debugging expert. You fix failing test files so they pass. "
+    "Output ONLY the corrected Python file — no markdown fences, no explanations."
+)
+
+SYSTEM_PROMPT_SOLUTION = (
+    "You are a senior Python engineer. You analyze failing code and produce "
+    "a corrected, production-ready version. You also suggest improvements for "
+    "reliability, performance, and readability. Output ONLY valid Python code."
+)
+
