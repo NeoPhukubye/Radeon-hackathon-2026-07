@@ -98,7 +98,10 @@ async def trigger_run(request: RunRequest, background_tasks: BackgroundTasks):
     repo_path = Path(request.repo_path) if request.repo_path else REPO_PATH
 
     if not repo_path.exists():
-        raise HTTPException(status_code=400, detail=f"Repo path does not exist: {repo_path}")
+        repo_path.mkdir(parents=True, exist_ok=True)
+        # Initialize as a git repo so git commands work
+        import subprocess
+        subprocess.run(["git", "init"], cwd=repo_path, capture_output=True)
 
     runs[run_id] = RunStatus(run_id=run_id, status="queued", current_step="queued")
     background_tasks.add_task(execute_run, run_id, repo_path, request.target_files)
