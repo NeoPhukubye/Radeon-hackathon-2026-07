@@ -53,7 +53,6 @@ jobs:
 
       - name: Run integration test with Ollama
         run: |
-          cd tracebot
           mkdir -p /tmp/test_repo
           cat > /tmp/test_repo/calculator.py << 'PYEOF'
           def add(a, b):
@@ -71,7 +70,7 @@ jobs:
               return a / b
           PYEOF
           cd /tmp/test_repo && git init && git config user.email "ci@test.com" && git config user.name "CI" && git add . && git commit -m "init"
-          cd /home/runner/work/Radeon-hackathon-2026-07/Radeon-hackathon-2026-07/tracebot
+          cd $GITHUB_WORKSPACE
           curl -sf -X POST http://localhost:8000/run \
             -H "Content-Type: application/json" \
             -d '{"repo_path": "/tmp/test_repo"}' | python -m json.tool
