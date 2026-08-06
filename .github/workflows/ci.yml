@@ -40,13 +40,11 @@ jobs:
 
       - name: Run TraceBot server smoke test
         run: |
-          cd tracebot
-          python -c "from main import app; print('App loads OK')"
+          python -c "from tracebot.main import app; print('App loads OK')"
 
       - name: Start server and test endpoints
         run: |
-          cd tracebot
-          uvicorn main:app --host 0.0.0.0 --port 8000 &
+          uvicorn tracebot.main:app --host 0.0.0.0 --port 8000 &
           sleep 3
           curl -sf http://localhost:8000/health
           curl -sf http://localhost:8000/
