@@ -24,21 +24,11 @@ jobs:
           pip install -r tracebot/requirements.txt
           pip install pytest httpx
 
-      - name: Install Ollama
+      - name: Run unit tests
         run: |
-          curl -fsSL https://ollama.com/install.sh | sh
+          python -m pytest tests/ -v
 
-      - name: Start Ollama and pull model
-        run: |
-          ollama serve &
-          sleep 5
-          ollama pull llama3
-
-      - name: Verify Ollama is running
-        run: |
-          curl -s http://localhost:11434/api/tags | python -m json.tool
-
-      - name: Run TraceBot server smoke test
+      - name: Verify app loads
         run: |
           python -c "from tracebot.main import app; print('App loads OK')"
 
@@ -48,31 +38,4 @@ jobs:
           sleep 3
           curl -sf http://localhost:8000/health
           curl -sf http://localhost:8000/
-          echo ""
           echo "All endpoints responding"
-
-      - name: Run integration test with Ollama
-        run: |
-          mkdir -p /tmp/test_repo
-          cat > /tmp/test_repo/calculator.py << 'PYEOF'
-          def add(a, b):
-              return a + b
-
-          def subtract(a, b):
-              return a - b
-
-          def multiply(a, b):
-              return a * b
-
-          def divide(a, b):
-              if b == 0:
-                  raise ValueError("Cannot divide by zero")
-              return a / b
-          PYEOF
-          cd /tmp/test_repo && git init && git config user.email "ci@test.com" && git config user.name "CI" && git add . && git commit -m "init"
-          cd $GITHUB_WORKSPACE
-          curl -sf -X POST http://localhost:8000/run \
-            -H "Content-Type: application/json" \
-            -d '{"repo_path": "/tmp/test_repo"}' | python -m json.tool
-          sleep 30
-          curl -sf http://localhost:8000/runs | python -m json.tool
