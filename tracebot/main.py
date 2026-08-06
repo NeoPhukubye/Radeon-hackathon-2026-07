@@ -153,7 +153,8 @@ async def health():
 
 @app.get("/")
 async def root():
-    return FileResponse("../docs/index.html")
+    index_path = Path(__file__).resolve().parent.parent / "docs" / "index.html"
+    return FileResponse(index_path)
 
 
 
