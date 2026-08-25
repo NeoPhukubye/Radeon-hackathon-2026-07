@@ -78,10 +78,12 @@ def run_pipeline(
         analysis = analysis[:MAX_FILES]
 
     logger.info(f"Phase 2: Generating tests for {len(analysis)} files in parallel...")
-    generated = _generate_tests_parallel(repo_path, analysis, model)
+    generation_errors = []
+    generated = _generate_tests_parallel(repo_path, analysis, model, generation_errors)
 
     if not generated:
-        return "Analysis found gaps but test generation produced no output."
+        error_detail = generation_errors[0] if generation_errors else "unknown error"
+        return f"Test generation failed: {error_detail}"
 
     logger.info("Phase 3: Running tests and self-correcting...")
     results = _debug_loop(repo_path, generated, model, max_debug_iterations)
@@ -148,20 +150,17 @@ def _generate_one_test(item: dict, test_dir: Path, model: str) -> Path | None:
         f"Output ONLY valid {language} code — no markdown fences, no explanations."
     )
 
-    try:
-        test_code = _strip_markdown_fences(_chat(model, system_prompt, prompt))
-        src_suffix = Path(item["file_path"]).suffix
-        test_filename = f"test_{Path(item['file_path']).stem}{src_suffix}"
-        test_path = test_dir / test_filename
-        write_file(test_path, test_code)
-        logger.info(f"  Generated: {test_filename} [{language}/{framework}]")
-        return test_path
-    except Exception as e:
-        logger.error(f"  Failed to generate test for {item['file_path']}: {e}")
-        return None
+    # Let exceptions propagate so the caller can surface them
+    test_code = _strip_markdown_fences(_chat(model, system_prompt, prompt))
+    src_suffix = Path(item["file_path"]).suffix
+    test_filename = f"test_{Path(item['file_path']).stem}{src_suffix}"
+    test_path = test_dir / test_filename
+    write_file(test_path, test_code)
+    logger.info(f"  Generated: {test_filename} [{language}/{framework}]")
+    return test_path
 
 
-def _generate_tests_parallel(repo_path: Path, analysis: list[dict], model: str) -> list[Path]:
+def _generate_tests_parallel(repo_path: Path, analysis: list[dict], model: str, errors: list) -> list[Path]:
     """Generate test files for all items concurrently."""
     test_dir = ensure_directory(repo_path / "generated_tests")
     generated = []
@@ -172,9 +171,15 @@ def _generate_tests_parallel(repo_path: Path, analysis: list[dict], model: str) 
             for item in analysis
         }
         for future in as_completed(futures):
-            result = future.result()
-            if result:
-                generated.append(result)
+            try:
+                result = future.result()
+                if result:
+                    generated.append(result)
+            except Exception as e:
+                item = futures[future]
+                msg = f"{item['file_path']}: {e}"
+                logger.error(f"  Test generation failed — {msg}")
+                errors.append(msg)
 
     return generated
 
