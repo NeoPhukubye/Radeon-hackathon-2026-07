@@ -48,10 +48,14 @@ def _chat(model: str, system_prompt: str, user_prompt: str) -> str:
             return response.text
         except Exception as e:
             last_error = e
-            err_str = str(e).lower()
-            if "429" in err_str or "quota" in err_str or "rate" in err_str:
-                wait = RETRY_DELAY * (attempt + 1)
-                logger.warning(f"  Rate limited, retrying in {wait}s (attempt {attempt + 1}/{RETRY_ATTEMPTS})")
+            err_str = str(e)
+            if "429" in err_str or "quota" in err_str.lower() or "rate" in err_str.lower():
+                # Try to extract retry_delay from error message
+                import re as _re
+                match = _re.search(r'retry[_\s]delay[^\d]*(\d+\.?\d*)', err_str, _re.IGNORECASE)
+                wait = float(match.group(1)) + 2 if match else RETRY_DELAY * (attempt + 1)
+                wait = min(wait, 30)  # cap at 30s
+                logger.warning(f"  Rate limited, waiting {wait:.0f}s (attempt {attempt + 1}/{RETRY_ATTEMPTS})")
                 time.sleep(wait)
             else:
                 raise

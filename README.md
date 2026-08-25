@@ -117,7 +117,7 @@ python3 -m pytest tests/ -v
 | Variable | Description | Default |
 |----------|-------------|---------|
 | `GEMINI_API_KEY` | Google Gemini API key (required) | — |
-| `TRACEBOT_MODEL` | Gemini model name | `gemini-3.6-flash` |
+| `TRACEBOT_MODEL` | Gemini model name | `gemini-2.0-flash-lite` |
 | `TRACEBOT_MAX_DEBUG` | Max debug loop iterations | `3` |
 | `TRACEBOT_REPO_PATH` | Default local repo path | `./watched_repo` |
 
