@@ -1,4 +1,128 @@
-# TraceBot: Local DevOps & Automated Testing Agent
+# TraceBot: Autonomous DevOps & Test Generation Agent
+
+## Overview
+TraceBot is an autonomous DevOps agent — paste any public GitHub repository URL and it will:
+
+1. **Scan** the repo for functions that lack test coverage
+2. **Generate** the missing tests using Google Gemini AI
+3. **Run** the generated tests and **self-correct** failing ones in a debug loop until they pass
+4. **Produce** improved versions of source files with better error handling and structure
+
+Supports **Python, JavaScript, TypeScript, Java, Go, Rust, C/C++, C#, Ruby, PHP, Kotlin, and Swift**.
+
+## Live Demo
+- **Frontend:** https://neophukubye.github.io/Radeon-hackathon-2026-07/
+- **Backend API:** https://radeon-hackathon-2026-07.onrender.com/docs
+
+## How It Works
+
+```
+GitHub URL  →  Clone Repo  →  Scan for untested functions
+                                        ↓
+                              Generate tests (Gemini AI)
+                                        ↓
+                              Run tests
+                                        ↓
+                          Pass? ──Yes──→ Report
+                            ↓No
+                          Fix with Gemini → Re-run (up to 3x)
+                                        ↓
+                              Generate improved source files
+                                        ↓
+                                    Report
+```
+
+## Architecture
+
+```
+GitHub Pages (Frontend)  →  Render.com (FastAPI Backend)  →  Google Gemini API
+        ↑                           ↓
+   Results displayed         Clone any GitHub repo
+                             Scan all source files
+                             Generate & run tests
+                             Self-correct failures
+```
+
+## API Endpoints
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `POST` | `/run` | Trigger a new analysis run |
+| `GET` | `/run/{run_id}` | Get status of a run |
+| `GET` | `/runs` | List all runs |
+| `GET` | `/health` | Health check |
+
+### POST /run — Request Body
+```json
+{
+  "repo_url": "https://github.com/username/repository",
+  "target_files": ["optional/specific/file.py"]
+}
+```
+
+## Setup (Local Development)
+
+### Prerequisites
+- Python 3.10+
+- A Google Gemini API key from [aistudio.google.com/app/apikey](https://aistudio.google.com/app/apikey)
+
+### Install
+```bash
+git clone https://github.com/NeoPhukubye/Radeon-hackathon-2026-07.git
+cd Radeon-hackathon-2026-07
+python3 -m venv venv
+source venv/bin/activate
+pip install -r tracebot/requirements.txt
+pip install -r test-requirements.txt
+```
+
+### Configure
+```bash
+export GEMINI_API_KEY=your_api_key_here
+export TRACEBOT_MODEL=gemini-3.6-flash
+```
+
+### Run
+```bash
+uvicorn tracebot.main:app --host 0.0.0.0 --port 8000 --reload
+```
+
+Open `http://localhost:8000/docs` for the interactive API.
+
+### Test
+```bash
+python3 -m pytest tests/ -v
+```
+
+## Supported Languages
+
+| Language | Test Framework Generated |
+|----------|--------------------------|
+| Python | unittest |
+| JavaScript / JSX | Jest |
+| TypeScript / TSX | Jest |
+| Java | JUnit 5 |
+| Go | testing (built-in) |
+| Rust | built-in `#[test]` |
+| C | Unity/assert |
+| C++ | Google Test |
+| C# | xUnit |
+| Ruby | RSpec |
+| PHP | PHPUnit |
+| Kotlin | JUnit 5 |
+| Swift | XCTest |
+
+## Environment Variables
+
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `GEMINI_API_KEY` | Google Gemini API key (required) | — |
+| `TRACEBOT_MODEL` | Gemini model name | `gemini-3.6-flash` |
+| `TRACEBOT_MAX_DEBUG` | Max debug loop iterations | `3` |
+| `TRACEBOT_REPO_PATH` | Default local repo path | `./watched_repo` |
+
+---
+*Developed by NeoDev for Radeon-hackathon-2026-07*
 
 ## Overview
 TraceBot is an intelligent agent designed to streamline the software development lifecycle by automating code analysis, test generation, and bug fixing. It leverages a local Large Language Model (LLM) powered by Ollama, with acceleration on AMD Radeon GPUs via ROCm, to provide real-time feedback and improvements to your Python codebase.
