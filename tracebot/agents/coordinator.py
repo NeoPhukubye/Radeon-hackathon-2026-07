@@ -38,11 +38,24 @@ def _get_gemini_model(model: str) -> genai.GenerativeModel:
 
 
 def _chat(model: str, system_prompt: str, user_prompt: str) -> str:
-    """Send a prompt to Gemini — creates a fresh model instance (safe for threads)."""
+    """Send a prompt to Gemini with retry on rate limit errors."""
     gemini_model = _get_gemini_model(model)
     full_prompt = f"{system_prompt}\n\n{user_prompt}"
-    response = gemini_model.generate_content(full_prompt)
-    return response.text
+    last_error = None
+    for attempt in range(RETRY_ATTEMPTS):
+        try:
+            response = gemini_model.generate_content(full_prompt)
+            return response.text
+        except Exception as e:
+            last_error = e
+            err_str = str(e).lower()
+            if "429" in err_str or "quota" in err_str or "rate" in err_str:
+                wait = RETRY_DELAY * (attempt + 1)
+                logger.warning(f"  Rate limited, retrying in {wait}s (attempt {attempt + 1}/{RETRY_ATTEMPTS})")
+                time.sleep(wait)
+            else:
+                raise
+    raise last_error
 
 
 def run_pipeline(
@@ -221,7 +234,7 @@ def _debug_loop(
 
 
 def _generate_one_solution(item: dict, results: list[dict], solutions_dir: Path, model: str, repo_path: Path) -> dict | None:
-    """Generate a solution file for a single item. Runs in a thread."""
+    """Generate a solution file for a single item. Always runs regardless of test outcome."""
     stem = Path(item["file_path"]).stem
     related_errors = ""
     for r in results:
@@ -235,6 +248,7 @@ def _generate_one_solution(item: dict, results: list[dict], solutions_dir: Path,
         f"Analyze the following {language} source code and produce an improved version.\n"
         f"- Fix any bugs or issues\n"
         f"- Add proper error handling where missing\n"
+        f"- Add docstrings/comments for clarity\n"
         f"- Keep the same API/interface\n"
     )
     if related_errors:
