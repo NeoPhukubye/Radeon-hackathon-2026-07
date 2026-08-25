@@ -9,7 +9,7 @@ from pathlib import Path
 
 import google.generativeai as genai
 
-from ..tools.code_parser import parse_python_file, find_existing_tests
+from ..tools.code_parser import parse_file, find_existing_tests
 from ..tools.test_runner import run_tests
 from ..tools.file_ops import read_file, write_file, ensure_directory
 from ..config import (
@@ -69,7 +69,7 @@ def run_pipeline(
 
 
 def _analyze(repo_path: Path, changed_files: list[str]) -> list[dict]:
-    """Identify functions that lack test coverage."""
+    """Identify functions that lack test coverage across all supported languages."""
     existing_tests = find_existing_tests(repo_path)
     all_tested = []
     for funcs in existing_tests.values():
@@ -78,10 +78,13 @@ def _analyze(repo_path: Path, changed_files: list[str]) -> list[dict]:
     gaps = []
     for file_rel in changed_files:
         file_path = repo_path / file_rel
-        if not file_path.exists() or file_path.suffix != ".py":
+        if not file_path.exists():
             continue
 
-        parsed = parse_python_file(file_path)
+        parsed = parse_file(file_path)
+        if not parsed["language"] or parsed["language"] == "unknown":
+            continue
+
         untested = [f for f in parsed["functions"] if f.split(".")[-1] not in all_tested]
 
         if untested:
@@ -90,8 +93,10 @@ def _analyze(repo_path: Path, changed_files: list[str]) -> list[dict]:
                 "source": parsed["source"],
                 "functions": parsed["functions"],
                 "untested": untested,
+                "language": parsed["language"],
+                "test_framework": parsed["test_framework"],
             })
-            logger.info(f"  {file_rel}: {len(untested)} untested function(s)")
+            logger.info(f"  {file_rel} [{parsed['language']}]: {len(untested)} untested function(s)")
 
     return gaps
 
