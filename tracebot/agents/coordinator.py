@@ -1,10 +1,11 @@
 """
 TraceBot Agent Coordinator
-Pipeline: Analyze → Generate Tests → Debug Loop → Generate Solutions → Report
+Pipeline: Analyze → Generate Tests (parallel) → Debug Loop → Generate Solutions (parallel) → Report
 
-Uses Google Gemini API for AI inference.
+Uses Google Gemini API for AI inference with concurrent requests for speed.
 """
 import logging
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 
 import google.generativeai as genai
@@ -19,6 +20,11 @@ from ..config import (
 
 logger = logging.getLogger("tracebot.coordinator")
 
+# Parallelism and size limits for speed
+MAX_WORKERS = 5          # concurrent Gemini calls
+MAX_FILES = 10           # cap files per run to avoid timeout
+MAX_SOURCE_CHARS = 4000  # truncate large files before sending to Gemini
+
 
 def _get_gemini_model(model: str) -> genai.GenerativeModel:
     """Configure Gemini and return a GenerativeModel instance."""
@@ -28,9 +34,9 @@ def _get_gemini_model(model: str) -> genai.GenerativeModel:
     return genai.GenerativeModel(model)
 
 
-def _chat(gemini_model: genai.GenerativeModel, system_prompt: str, user_prompt: str) -> str:
-    """Send a system + user prompt to Gemini and return the text response."""
-    # Gemini combines system instruction + user message as a single prompt
+def _chat(model: str, system_prompt: str, user_prompt: str) -> str:
+    """Send a prompt to Gemini — creates a fresh model instance (safe for threads)."""
+    gemini_model = _get_gemini_model(model)
     full_prompt = f"{system_prompt}\n\n{user_prompt}"
     response = gemini_model.generate_content(full_prompt)
     return response.text
@@ -39,7 +45,7 @@ def _chat(gemini_model: genai.GenerativeModel, system_prompt: str, user_prompt: 
 def run_pipeline(
     repo_path: Path,
     changed_files: list[str],
-    model: str = "gemini-1.5-flash",
+    model: str = "gemini-3.6-flash",
     max_debug_iterations: int = 3,
 ) -> str:
     """Execute the full TraceBot pipeline and return a summary report."""
@@ -50,8 +56,13 @@ def run_pipeline(
     if not analysis:
         return "No untested functions found. All code appears covered."
 
-    logger.info("Phase 2: Generating unit tests via Gemini API...")
-    generated = _generate_tests(repo_path, analysis, model)
+    # Cap to MAX_FILES for speed
+    if len(analysis) > MAX_FILES:
+        logger.info(f"  Capping to {MAX_FILES} files for speed (found {len(analysis)})")
+        analysis = analysis[:MAX_FILES]
+
+    logger.info(f"Phase 2: Generating tests for {len(analysis)} files in parallel...")
+    generated = _generate_tests_parallel(repo_path, analysis, model)
 
     if not generated:
         return "Analysis found gaps but test generation produced no output."
@@ -59,8 +70,8 @@ def run_pipeline(
     logger.info("Phase 3: Running tests and self-correcting...")
     results = _debug_loop(repo_path, generated, model, max_debug_iterations)
 
-    logger.info("Phase 4: Generating solutions for failures...")
-    solutions = _generate_solutions(repo_path, analysis, results, model)
+    logger.info(f"Phase 4: Generating solutions in parallel...")
+    solutions = _generate_solutions_parallel(repo_path, analysis, results, model)
 
     return _build_report(analysis, generated, results, solutions)
 
@@ -85,9 +96,14 @@ def _analyze(repo_path: Path, changed_files: list[str]) -> list[dict]:
         untested = [f for f in parsed["functions"] if f.split(".")[-1] not in all_tested]
 
         if untested:
+            # Truncate large source files
+            source = parsed["source"]
+            if len(source) > MAX_SOURCE_CHARS:
+                source = source[:MAX_SOURCE_CHARS] + f"\n# ... (truncated, {len(parsed['source'])} chars total)"
+
             gaps.append({
                 "file_path": file_rel,
-                "source": parsed["source"],
+                "source": source,
                 "functions": parsed["functions"],
                 "untested": untested,
                 "language": parsed["language"],
@@ -98,41 +114,51 @@ def _analyze(repo_path: Path, changed_files: list[str]) -> list[dict]:
     return gaps
 
 
-def _generate_tests(repo_path: Path, analysis: list[dict], model: str) -> list[Path]:
-    """Call the Gemini API to generate test files in the correct language/framework."""
-    test_dir = ensure_directory(repo_path / "generated_tests")
-    gemini_model = _get_gemini_model(model)
-    generated = []
+def _generate_one_test(item: dict, test_dir: Path, model: str) -> Path | None:
+    """Generate a test file for a single analysis item. Runs in a thread."""
+    language = item["language"]
+    framework = item["test_framework"]
 
-    for item in analysis:
-        language = item["language"]
-        framework = item["test_framework"]
+    prompt = (
+        f"Generate a complete {language} test file for the following source code.\n"
+        f"Use the {framework} testing framework.\n"
+        f"Focus on testing these functions: {', '.join(item['untested'])}\n"
+        f"Include all necessary imports and setup.\n"
+        f"The source file is at: {item['file_path']}\n\n"
+        f"Source code:\n{item['source']}"
+    )
+    system_prompt = (
+        f"You are an expert {language} test engineer. Write a thorough {framework} test file. "
+        f"Output ONLY valid {language} code — no markdown fences, no explanations."
+    )
 
-        prompt = (
-            f"Generate a complete {language} test file for the following source code.\n"
-            f"Use the {framework} testing framework.\n"
-            f"Focus on testing these functions: {', '.join(item['untested'])}\n"
-            f"Include all necessary imports and setup.\n"
-            f"Assume the source is importable/accessible from the project root.\n"
-            f"The source file is at: {item['file_path']}\n\n"
-            f"Source code:\n{item['source']}"
-        )
-
-        system_prompt = (
-            f"You are an expert {language} test engineer. You write thorough, correct "
-            f"{framework} test files. Output ONLY valid {language} code — no markdown "
-            f"fences, no explanations, no comments outside the code."
-        )
-
-        test_code = _strip_markdown_fences(_chat(gemini_model, system_prompt, prompt))
-
-        # Pick the right extension for the test file
+    try:
+        test_code = _strip_markdown_fences(_chat(model, system_prompt, prompt))
         src_suffix = Path(item["file_path"]).suffix
         test_filename = f"test_{Path(item['file_path']).stem}{src_suffix}"
         test_path = test_dir / test_filename
         write_file(test_path, test_code)
-        generated.append(test_path)
         logger.info(f"  Generated: {test_filename} [{language}/{framework}]")
+        return test_path
+    except Exception as e:
+        logger.error(f"  Failed to generate test for {item['file_path']}: {e}")
+        return None
+
+
+def _generate_tests_parallel(repo_path: Path, analysis: list[dict], model: str) -> list[Path]:
+    """Generate test files for all items concurrently."""
+    test_dir = ensure_directory(repo_path / "generated_tests")
+    generated = []
+
+    with ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
+        futures = {
+            executor.submit(_generate_one_test, item, test_dir, model): item
+            for item in analysis
+        }
+        for future in as_completed(futures):
+            result = future.result()
+            if result:
+                generated.append(result)
 
     return generated
 
@@ -144,7 +170,6 @@ def _debug_loop(
     max_iterations: int,
 ) -> list[dict]:
     """Run each test file; if it fails, ask Gemini to fix it. Repeat up to max_iterations."""
-    gemini_model = _get_gemini_model(model)
     results = []
 
     for test_path in test_files:
@@ -166,18 +191,23 @@ def _debug_loop(
             error_text = "\n".join(outcome["errors"][:3]) or outcome["output"][-2000:]
 
             fix_prompt = (
-                f"This unittest file failed with the following errors. Fix it.\n\n"
+                f"This test file failed with the following errors. Fix it.\n\n"
                 f"Error output:\n{error_text}\n\n"
                 f"Current test file:\n{test_content}\n\n"
-                f"Output the complete corrected Python file."
+                f"Output the complete corrected file."
             )
 
-            fixed_code = _strip_markdown_fences(
-                _chat(gemini_model, 
-                      "You are a debugging expert. Fix the failing test file so it passes. Output ONLY the corrected code — no markdown fences, no explanations.",
-                      fix_prompt)
-            )
-            write_file(test_path, fixed_code)
+            try:
+                fixed_code = _strip_markdown_fences(
+                    _chat(model,
+                          "You are a debugging expert. Fix the failing test file so it passes. "
+                          "Output ONLY the corrected code — no markdown fences, no explanations.",
+                          fix_prompt)
+                )
+                write_file(test_path, fixed_code)
+            except Exception as e:
+                logger.error(f"  Fix attempt failed: {e}")
+                break
 
         if not file_result["passed"]:
             logger.warning(f"  {test_path.name}: still failing after {max_iterations} attempts")
@@ -187,63 +217,67 @@ def _debug_loop(
     return results
 
 
-def _generate_solutions(
+def _generate_one_solution(item: dict, results: list[dict], solutions_dir: Path, model: str, repo_path: Path) -> dict | None:
+    """Generate a solution file for a single item. Runs in a thread."""
+    stem = Path(item["file_path"]).stem
+    related_errors = ""
+    for r in results:
+        if stem in r["file"] and not r["passed"]:
+            related_errors = r.get("errors", "")
+
+    language = item.get("language", "Python")
+    src_suffix = Path(item["file_path"]).suffix
+
+    prompt = (
+        f"Analyze the following {language} source code and produce an improved version.\n"
+        f"- Fix any bugs or issues\n"
+        f"- Add proper error handling where missing\n"
+        f"- Keep the same API/interface\n"
+    )
+    if related_errors:
+        prompt += f"\nTest failures:\n{related_errors[:1000]}\n"
+    prompt += f"\nSource ({item['file_path']}):\n{item['source']}\n\nOutput the complete improved {language} file."
+
+    system_prompt = (
+        f"You are a senior {language} engineer. Produce a corrected, production-ready version. "
+        f"Output ONLY valid {language} code."
+    )
+
+    try:
+        solution_code = _strip_markdown_fences(_chat(model, system_prompt, prompt))
+        solution_filename = f"solution_{stem}{src_suffix}"
+        solution_path = solutions_dir / solution_filename
+        write_file(solution_path, solution_code)
+        logger.info(f"  Solution: {solution_filename}")
+        return {
+            "source_file": item["file_path"],
+            "solution_file": str(solution_path.relative_to(repo_path)),
+            "functions_addressed": item["untested"],
+        }
+    except Exception as e:
+        logger.error(f"  Failed to generate solution for {item['file_path']}: {e}")
+        return None
+
+
+def _generate_solutions_parallel(
     repo_path: Path,
     analysis: list[dict],
     results: list[dict],
     model: str,
 ) -> list[dict]:
-    """Generate solution files: improved/fixed versions of the source code."""
+    """Generate solution files concurrently."""
     solutions_dir = ensure_directory(repo_path / SOLUTIONS_OUTPUT_DIR)
-    gemini_model = _get_gemini_model(model)
     solutions = []
 
-    for item in analysis:
-        stem = Path(item["file_path"]).stem
-        related_errors = ""
-        for r in results:
-            if stem in r["file"] and not r["passed"]:
-                related_errors = r.get("errors", "")
-
-        language = item.get("language", "Python")
-        src_suffix = Path(item["file_path"]).suffix
-
-        prompt = (
-            f"Analyze the following {language} source code and produce an improved version.\n"
-            f"Requirements:\n"
-            f"- Fix any bugs or issues that would cause test failures\n"
-            f"- Add proper error handling where missing\n"
-            f"- Ensure all public functions are robust and well-structured\n"
-            f"- Keep the same API/interface\n"
-        )
-
-        if related_errors:
-            prompt += f"\nTest failures encountered:\n{related_errors[:1500]}\n"
-
-        prompt += (
-            f"\nSource file ({item['file_path']}):\n{item['source']}\n\n"
-            f"Output the complete improved {language} file."
-        )
-
-        system_prompt = (
-            f"You are a senior {language} engineer. You analyze failing code and produce "
-            f"a corrected, production-ready version. Output ONLY valid {language} code."
-        )
-
-        solution_code = _strip_markdown_fences(
-            _chat(gemini_model, system_prompt, prompt)
-        )
-
-        solution_filename = f"solution_{Path(item['file_path']).stem}{src_suffix}"
-        solution_path = solutions_dir / solution_filename
-        write_file(solution_path, solution_code)
-
-        solutions.append({
-            "source_file": item["file_path"],
-            "solution_file": str(solution_path.relative_to(repo_path)),
-            "functions_addressed": item["untested"],
-        })
-        logger.info(f"  Solution generated: {solution_filename}")
+    with ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
+        futures = {
+            executor.submit(_generate_one_solution, item, results, solutions_dir, model, repo_path): item
+            for item in analysis
+        }
+        for future in as_completed(futures):
+            result = future.result()
+            if result:
+                solutions.append(result)
 
     return solutions
 
@@ -260,9 +294,16 @@ def _build_report(
     passed = sum(1 for r in results if r["passed"])
     failed = total_generated - passed
 
+    # Group by language
+    lang_counts: dict[str, int] = {}
+    for a in analysis:
+        lang = a.get("language", "Unknown")
+        lang_counts[lang] = lang_counts.get(lang, 0) + 1
+
     lines = [
-        "TraceBot Run Complete (Multi-Language | Gemini API)",
+        "TraceBot Analysis Complete",
         "=" * 50,
+        f"Languages detected:    {', '.join(f'{l} ({c})' for l, c in lang_counts.items())}",
         f"Files analyzed:        {len(analysis)}",
         f"Untested functions:    {total_gaps}",
         f"Test files generated:  {total_generated}",
