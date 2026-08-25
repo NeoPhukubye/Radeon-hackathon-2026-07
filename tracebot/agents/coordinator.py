@@ -5,6 +5,7 @@ Pipeline: Analyze → Generate Tests (parallel) → Debug Loop → Generate Solu
 Uses Google Gemini API for AI inference with concurrent requests for speed.
 """
 import logging
+import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 
@@ -21,9 +22,11 @@ from ..config import (
 logger = logging.getLogger("tracebot.coordinator")
 
 # Parallelism and size limits for speed
-MAX_WORKERS = 5          # concurrent Gemini calls
+MAX_WORKERS = 3          # keep low to avoid Gemini rate limits
 MAX_FILES = 10           # cap files per run to avoid timeout
 MAX_SOURCE_CHARS = 4000  # truncate large files before sending to Gemini
+RETRY_ATTEMPTS = 3       # retry on rate limit errors
+RETRY_DELAY = 5          # seconds between retries
 
 
 def _get_gemini_model(model: str) -> genai.GenerativeModel:
