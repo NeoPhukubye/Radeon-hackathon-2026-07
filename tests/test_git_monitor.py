@@ -12,7 +12,7 @@ file2.py"""
         changed_files = git_monitor.get_changed_files(Path("/fake/repo"))
         assert changed_files == ["file1.py", "file2.py"]
         mock_run.assert_called_once_with(
-            ["git", "diff", "--name-only", "HEAD~1", "--", "*.py"],
+            ["git", "diff", "--name-only", "HEAD~1"],
             cwd=Path("/fake/repo"),
             capture_output=True,
             text=True,
