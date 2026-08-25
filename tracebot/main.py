@@ -67,7 +67,11 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(
     title="TraceBot",
-    description="AI-Powered Code Analysis & Test Generation — Analyze any GitHub repo — NeoDev",
+    description=(
+        "Autonomous DevOps agent — scans any GitHub repository for untested functions, "
+        "generates the missing tests using Google Gemini AI, and self-corrects failing tests "
+        "in a debug loop until they pass. Supports Python, JavaScript, TypeScript, Java, Go, Rust, and more."
+    ),
     version="1.0.0",
     lifespan=lifespan,
 )
