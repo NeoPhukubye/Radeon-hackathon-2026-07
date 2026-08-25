@@ -15,9 +15,6 @@ from ..tools.file_ops import read_file, write_file, ensure_directory
 from ..config import (
     GEMINI_API_KEY,
     SOLUTIONS_OUTPUT_DIR,
-    SYSTEM_PROMPT_GENERATE,
-    SYSTEM_PROMPT_FIX,
-    SYSTEM_PROMPT_SOLUTION,
 )
 
 logger = logging.getLogger("tracebot.coordinator")
@@ -102,30 +99,40 @@ def _analyze(repo_path: Path, changed_files: list[str]) -> list[dict]:
 
 
 def _generate_tests(repo_path: Path, analysis: list[dict], model: str) -> list[Path]:
-    """Call the Gemini API to generate unittest files."""
+    """Call the Gemini API to generate test files in the correct language/framework."""
     test_dir = ensure_directory(repo_path / "generated_tests")
     gemini_model = _get_gemini_model(model)
     generated = []
 
     for item in analysis:
+        language = item["language"]
+        framework = item["test_framework"]
+
         prompt = (
-            f"Generate a complete Python unittest test file for the following source code.\n"
+            f"Generate a complete {language} test file for the following source code.\n"
+            f"Use the {framework} testing framework.\n"
             f"Focus on testing these functions: {', '.join(item['untested'])}\n"
-            f"Use Python's unittest framework with unittest.TestCase.\n"
-            f"Include proper imports (assume the source is importable from the repo root).\n"
+            f"Include all necessary imports and setup.\n"
+            f"Assume the source is importable/accessible from the project root.\n"
             f"The source file is at: {item['file_path']}\n\n"
             f"Source code:\n{item['source']}"
         )
 
-        test_code = _strip_markdown_fences(
-            _chat(gemini_model, SYSTEM_PROMPT_GENERATE, prompt)
+        system_prompt = (
+            f"You are an expert {language} test engineer. You write thorough, correct "
+            f"{framework} test files. Output ONLY valid {language} code — no markdown "
+            f"fences, no explanations, no comments outside the code."
         )
 
-        test_filename = f"test_{Path(item['file_path']).stem}.py"
+        test_code = _strip_markdown_fences(_chat(gemini_model, system_prompt, prompt))
+
+        # Pick the right extension for the test file
+        src_suffix = Path(item["file_path"]).suffix
+        test_filename = f"test_{Path(item['file_path']).stem}{src_suffix}"
         test_path = test_dir / test_filename
         write_file(test_path, test_code)
         generated.append(test_path)
-        logger.info(f"  Generated: {test_filename}")
+        logger.info(f"  Generated: {test_filename} [{language}/{framework}]")
 
     return generated
 
@@ -166,7 +173,9 @@ def _debug_loop(
             )
 
             fixed_code = _strip_markdown_fences(
-                _chat(gemini_model, SYSTEM_PROMPT_FIX, fix_prompt)
+                _chat(gemini_model, 
+                      "You are a debugging expert. Fix the failing test file so it passes. Output ONLY the corrected code — no markdown fences, no explanations.",
+                      fix_prompt)
             )
             write_file(test_path, fixed_code)
 
@@ -196,8 +205,11 @@ def _generate_solutions(
             if stem in r["file"] and not r["passed"]:
                 related_errors = r.get("errors", "")
 
+        language = item.get("language", "Python")
+        src_suffix = Path(item["file_path"]).suffix
+
         prompt = (
-            f"Analyze the following Python source code and produce an improved version.\n"
+            f"Analyze the following {language} source code and produce an improved version.\n"
             f"Requirements:\n"
             f"- Fix any bugs or issues that would cause test failures\n"
             f"- Add proper error handling where missing\n"
@@ -210,14 +222,19 @@ def _generate_solutions(
 
         prompt += (
             f"\nSource file ({item['file_path']}):\n{item['source']}\n\n"
-            f"Output the complete improved Python file."
+            f"Output the complete improved {language} file."
+        )
+
+        system_prompt = (
+            f"You are a senior {language} engineer. You analyze failing code and produce "
+            f"a corrected, production-ready version. Output ONLY valid {language} code."
         )
 
         solution_code = _strip_markdown_fences(
-            _chat(gemini_model, SYSTEM_PROMPT_SOLUTION, prompt)
+            _chat(gemini_model, system_prompt, prompt)
         )
 
-        solution_filename = f"solution_{Path(item['file_path']).stem}.py"
+        solution_filename = f"solution_{Path(item['file_path']).stem}{src_suffix}"
         solution_path = solutions_dir / solution_filename
         write_file(solution_path, solution_code)
 
@@ -244,7 +261,7 @@ def _build_report(
     failed = total_generated - passed
 
     lines = [
-        "TraceBot Run Complete (Gemini API)",
+        "TraceBot Run Complete (Multi-Language | Gemini API)",
         "=" * 50,
         f"Files analyzed:        {len(analysis)}",
         f"Untested functions:    {total_gaps}",
