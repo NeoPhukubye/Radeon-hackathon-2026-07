@@ -3,7 +3,7 @@ from pathlib import Path
 
 REPO_PATH = Path(os.environ.get("TRACEBOT_REPO_PATH", "./watched_repo"))
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "")
-MODEL_NAME = os.environ.get("TRACEBOT_MODEL", "gemini-2.0-flash-lite")
+MODEL_NAME = os.environ.get("TRACEBOT_MODEL", "gemini-3.5-flash-lite")
 MAX_DEBUG_ITERATIONS = int(os.environ.get("TRACEBOT_MAX_DEBUG", "3"))
 TEST_OUTPUT_DIR = os.environ.get("TRACEBOT_TEST_DIR", "generated_tests")
 SOLUTIONS_OUTPUT_DIR = os.environ.get("TRACEBOT_SOLUTIONS_DIR", "generated_solutions")

@@ -38,8 +38,10 @@ def _get_gemini_model(model: str) -> genai.GenerativeModel:
 
 
 def _chat(model: str, system_prompt: str, user_prompt: str) -> str:
-    """Send a prompt to Gemini with retry on rate limit errors."""
-    gemini_model = _get_gemini_model(model)
+    """Send a prompt to Gemini with retry on rate limit and auto-switch on deprecated models."""
+    import re as _re
+    active_model = model
+    gemini_model = _get_gemini_model(active_model)
     full_prompt = f"{system_prompt}\n\n{user_prompt}"
     last_error = None
     for attempt in range(RETRY_ATTEMPTS):
@@ -49,12 +51,19 @@ def _chat(model: str, system_prompt: str, user_prompt: str) -> str:
         except Exception as e:
             last_error = e
             err_str = str(e)
+            # Auto-switch if the model has been deprecated
+            switch_match = _re.search(r'use models/([\w.\-]+)', err_str)
+            if switch_match and "no longer available" in err_str:
+                new_model = switch_match.group(1)
+                logger.warning(f"  Model {active_model} deprecated, switching to {new_model}")
+                active_model = new_model
+                gemini_model = _get_gemini_model(active_model)
+                continue
+            # Retry on rate limit
             if "429" in err_str or "quota" in err_str.lower() or "rate" in err_str.lower():
-                # Try to extract retry_delay from error message
-                import re as _re
-                match = _re.search(r'retry[_\s]delay[^\d]*(\d+\.?\d*)', err_str, _re.IGNORECASE)
-                wait = float(match.group(1)) + 2 if match else RETRY_DELAY * (attempt + 1)
-                wait = min(wait, 30)  # cap at 30s
+                wait_match = _re.search(r'retry[_\s]delay[^\d]*(\d+\.?\d*)', err_str, _re.IGNORECASE)
+                wait = float(wait_match.group(1)) + 2 if wait_match else RETRY_DELAY * (attempt + 1)
+                wait = min(wait, 30)
                 logger.warning(f"  Rate limited, waiting {wait:.0f}s (attempt {attempt + 1}/{RETRY_ATTEMPTS})")
                 time.sleep(wait)
             else:
