@@ -9,11 +9,9 @@ services:
         value: 3.10.12
       - key: TRACEBOT_REPO_PATH
         value: /opt/render/project/src/watched_repo
-      - key: TRACEBOT_ROCM_ENABLED
-        value: "false"
-      - key: TRACEBOT_OLLAMA_URL
-        sync: false   # set manually in Render dashboard (your external Ollama URL)
       - key: TRACEBOT_MODEL
-        value: qwen2.5-coder:1.5b
+        value: gemini-1.5-flash
       - key: TRACEBOT_MAX_DEBUG
         value: "3"
+      - key: GEMINI_API_KEY
+        sync: false   # set manually in Render dashboard — never commit the real value

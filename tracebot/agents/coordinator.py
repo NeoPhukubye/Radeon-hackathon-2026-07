@@ -2,17 +2,18 @@
 TraceBot Agent Coordinator
 Pipeline: Analyze → Generate Tests → Debug Loop → Generate Solutions → Report
 
-Uses AMD Radeon GPU via ROCm for accelerated local LLM inference through Ollama.
+Uses Google Gemini API for AI inference.
 """
 import logging
 from pathlib import Path
 
-import ollama
+import google.generativeai as genai
 
 from ..tools.code_parser import parse_python_file, find_existing_tests
 from ..tools.test_runner import run_tests
 from ..tools.file_ops import read_file, write_file, ensure_directory
 from ..config import (
+    GEMINI_API_KEY,
     SOLUTIONS_OUTPUT_DIR,
     SYSTEM_PROMPT_GENERATE,
     SYSTEM_PROMPT_FIX,
@@ -22,10 +23,26 @@ from ..config import (
 logger = logging.getLogger("tracebot.coordinator")
 
 
+def _get_gemini_model(model: str) -> genai.GenerativeModel:
+    """Configure Gemini and return a GenerativeModel instance."""
+    if not GEMINI_API_KEY:
+        raise ValueError("GEMINI_API_KEY environment variable is not set.")
+    genai.configure(api_key=GEMINI_API_KEY)
+    return genai.GenerativeModel(model)
+
+
+def _chat(gemini_model: genai.GenerativeModel, system_prompt: str, user_prompt: str) -> str:
+    """Send a system + user prompt to Gemini and return the text response."""
+    # Gemini combines system instruction + user message as a single prompt
+    full_prompt = f"{system_prompt}\n\n{user_prompt}"
+    response = gemini_model.generate_content(full_prompt)
+    return response.text
+
+
 def run_pipeline(
     repo_path: Path,
     changed_files: list[str],
-    model: str = "qwen2.5-coder:1.5b",
+    model: str = "gemini-1.5-flash",
     max_debug_iterations: int = 3,
 ) -> str:
     """Execute the full TraceBot pipeline and return a summary report."""
@@ -36,7 +53,7 @@ def run_pipeline(
     if not analysis:
         return "No untested functions found. All code appears covered."
 
-    logger.info("Phase 2: Generating unit tests (Radeon GPU accelerated)...")
+    logger.info("Phase 2: Generating unit tests via Gemini API...")
     generated = _generate_tests(repo_path, analysis, model)
 
     if not generated:
@@ -80,8 +97,9 @@ def _analyze(repo_path: Path, changed_files: list[str]) -> list[dict]:
 
 
 def _generate_tests(repo_path: Path, analysis: list[dict], model: str) -> list[Path]:
-    """Call the local LLM (on Radeon GPU) to generate unittest files."""
+    """Call the Gemini API to generate unittest files."""
     test_dir = ensure_directory(repo_path / "generated_tests")
+    gemini_model = _get_gemini_model(model)
     generated = []
 
     for item in analysis:
@@ -94,12 +112,9 @@ def _generate_tests(repo_path: Path, analysis: list[dict], model: str) -> list[P
             f"Source code:\n{item['source']}"
         )
 
-        response = ollama.chat(model=model, messages=[
-            {"role": "system", "content": SYSTEM_PROMPT_GENERATE},
-            {"role": "user", "content": prompt},
-        ])
-
-        test_code = _strip_markdown_fences(response["message"]["content"])
+        test_code = _strip_markdown_fences(
+            _chat(gemini_model, SYSTEM_PROMPT_GENERATE, prompt)
+        )
 
         test_filename = f"test_{Path(item['file_path']).stem}.py"
         test_path = test_dir / test_filename
@@ -116,7 +131,8 @@ def _debug_loop(
     model: str,
     max_iterations: int,
 ) -> list[dict]:
-    """Run each test file; if it fails, ask the LLM to fix it. Repeat up to max_iterations."""
+    """Run each test file; if it fails, ask Gemini to fix it. Repeat up to max_iterations."""
+    gemini_model = _get_gemini_model(model)
     results = []
 
     for test_path in test_files:
@@ -144,12 +160,9 @@ def _debug_loop(
                 f"Output the complete corrected Python file."
             )
 
-            response = ollama.chat(model=model, messages=[
-                {"role": "system", "content": SYSTEM_PROMPT_FIX},
-                {"role": "user", "content": fix_prompt},
-            ])
-
-            fixed_code = _strip_markdown_fences(response["message"]["content"])
+            fixed_code = _strip_markdown_fences(
+                _chat(gemini_model, SYSTEM_PROMPT_FIX, fix_prompt)
+            )
             write_file(test_path, fixed_code)
 
         if not file_result["passed"]:
@@ -168,10 +181,10 @@ def _generate_solutions(
 ) -> list[dict]:
     """Generate solution files: improved/fixed versions of the source code."""
     solutions_dir = ensure_directory(repo_path / SOLUTIONS_OUTPUT_DIR)
+    gemini_model = _get_gemini_model(model)
     solutions = []
 
     for item in analysis:
-        # Gather any test errors related to this file
         stem = Path(item["file_path"]).stem
         related_errors = ""
         for r in results:
@@ -195,12 +208,9 @@ def _generate_solutions(
             f"Output the complete improved Python file."
         )
 
-        response = ollama.chat(model=model, messages=[
-            {"role": "system", "content": SYSTEM_PROMPT_SOLUTION},
-            {"role": "user", "content": prompt},
-        ])
-
-        solution_code = _strip_markdown_fences(response["message"]["content"])
+        solution_code = _strip_markdown_fences(
+            _chat(gemini_model, SYSTEM_PROMPT_SOLUTION, prompt)
+        )
 
         solution_filename = f"solution_{Path(item['file_path']).stem}.py"
         solution_path = solutions_dir / solution_filename
@@ -229,7 +239,7 @@ def _build_report(
     failed = total_generated - passed
 
     lines = [
-        "TraceBot Run Complete (AMD Radeon GPU Accelerated)",
+        "TraceBot Run Complete (Gemini API)",
         "=" * 50,
         f"Files analyzed:        {len(analysis)}",
         f"Untested functions:    {total_gaps}",
