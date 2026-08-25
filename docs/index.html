@@ -118,14 +118,14 @@
         <section id="control-section">
             <h2>New Run</h2>
             <div class="form-group">
-                <label for="repo-path">Repository Path (optional)</label>
-                <input type="text" id="repo-path" placeholder="/opt/render/project/src">
+                <label for="repo-url">GitHub Repository URL</label>
+                <input type="text" id="repo-url" placeholder="https://github.com/username/repository">
             </div>
             <div class="form-group">
                 <label for="target-files">Target Files (optional, one per line)</label>
-                <textarea id="target-files" placeholder="e.g., my_module/my_file.py&#10;another_module/utils.py"></textarea>
+                <textarea id="target-files" placeholder="e.g., src/utils.py&#10;lib/helpers.js"></textarea>
             </div>
-            <button id="run-button">Trigger Run</button>
+            <button id="run-button">Analyze Repository</button>
         </section>
 
         <section id="runs-section">
@@ -151,7 +151,7 @@
 
     <script>
         const runButton = document.getElementById('run-button');
-        const repoPathInput = document.getElementById('repo-path');
+        const repoUrlInput = document.getElementById('repo-url');
         const targetFilesInput = document.getElementById('target-files');
         const runsList = document.getElementById('runs-list');
         const detailsSection = document.getElementById('details-section');
@@ -184,7 +184,7 @@
                     <div>
                         <span class="run-id">${run.run_id}</span>
                         <br>
-                        <span>${run.current_step}</span>
+                        <span>${run.repo_url ? run.repo_url : run.current_step}</span>
                     </div>
                     <span class="run-status ${run.status}">${run.status}</span>
                 `;
@@ -214,10 +214,13 @@
         }
 
         async function triggerRun() {
-            const repoPath = repoPathInput.value.trim() || DEFAULT_REPO_PATH;
+            const repoUrl = repoUrlInput.value.trim();
             const targetFiles = targetFilesInput.value.trim().split('\n').filter(f => f);
 
-            const body = { repo_path: repoPath };
+            const body = {};
+            if (repoUrl) {
+                body.repo_url = repoUrl;
+            }
             if (targetFiles.length > 0) {
                 body.target_files = targetFiles;
             }
@@ -235,7 +238,7 @@
                 });
                 if (response.ok) {
                     await fetchRuns();
-                    repoPathInput.value = '';
+                    repoUrlInput.value = '';
                     targetFilesInput.value = '';
                 } else {
                     const error = await response.json();
