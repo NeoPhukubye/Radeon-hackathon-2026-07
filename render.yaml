@@ -1,0 +1,19 @@
+services:
+  - type: web
+    name: tracebot
+    runtime: python
+    buildCommand: pip install -r tracebot/requirements.txt
+    startCommand: uvicorn tracebot.main:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.10.12
+      - key: TRACEBOT_REPO_PATH
+        value: /opt/render/project/src/watched_repo
+      - key: TRACEBOT_ROCM_ENABLED
+        value: "false"
+      - key: TRACEBOT_OLLAMA_URL
+        sync: false   # set manually in Render dashboard (your external Ollama URL)
+      - key: TRACEBOT_MODEL
+        value: qwen2.5-coder:1.5b
+      - key: TRACEBOT_MAX_DEBUG
+        value: "3"
